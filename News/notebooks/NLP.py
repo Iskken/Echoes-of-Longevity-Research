@@ -10,12 +10,13 @@ from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
 
 def analyze_bertopic(
         df: pd.DataFrame,
-        v_min_df: int = 2,
-        v_max_df: Union[int, float] = 0.6,
+        v_min_df: Union[int, float] = 1,
+        v_max_df: Union[int, float] = 0.8,
         text_col: str = "abstract",
         embedding_model: Union[str, SentenceTransformer] = "sentence-transformers/all-mpnet-base-v2",
         max_features: int = 5000,
         top_n_words: int = 10,
+        topic_col_name: str = 'topic',
         save_csv: str | None = None,
 ) -> Tuple[BERTopic, pd.DataFrame]:
     """
@@ -59,11 +60,11 @@ def analyze_bertopic(
     df_out = df.copy()
     docs = df[text_col].fillna("").str.strip() != ""
 
-    df_out.loc[docs, "topic"]      = topics
-    df_out.loc[docs, "topic_prob"] = [max(p) for p in probs]
+    df_out.loc[docs, topic_col_name]      = topics
+    df_out.loc[docs, f"{topic_col_name}_prob"] = [max(p) for p in probs]
 
     
-    df_out.loc[docs, "topic_keywords"] = df_out.loc[docs, "topic"].apply(
+    df_out.loc[docs, "topic_keywords"] = df_out.loc[docs, topic_col_name].apply(
         lambda t: [w for w, _ in topic_model.get_topic(int(t))]
     )
 
@@ -75,24 +76,44 @@ def analyze_bertopic(
 
     return topic_model, topic_info, df_out
 
+def full_keyword_getter(df):
+    # 1. Only keep the rows where we actually assigned keywords
+    df_map = df.dropna(subset=["topic_keywords"])
+    
+    # 2. Drop duplicates so each topic ID appears exactly once
+    df_map = df_map.drop_duplicates(subset=["topic"])
+    
+    # 3. Build a mapping: topic_id → keyword list
+    topic_to_keywords = (
+        df_map.set_index("topic")["topic_keywords"]
+              .astype(object)               # ensure lists aren’t cast to strings
+              .to_dict()
+    )
+    
+    # 4. Print them in ID order
+    for tid, kws in sorted(topic_to_keywords.items()):
+        print(f"{tid} → {kws}")
 
-def basic_clean(t: str) -> str:
-    t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode()
-    t = re.sub(r"http\S+|www\.\S+", " ", t)   # URLs
-    t = re.sub(r"\d+", " ", t)                # digits
-    return re.sub(r"\s+", " ", t).lower().strip()
 
-def top_tfidf_terms(texts, top_k=50, min_df=3, max_df=0.8,
-                    ngram_range=(1,3), extra_stop=None):
-    docs = [basic_clean(x) for x in texts if isinstance(x, str) and x.strip()]
-    stop = set(ENGLISH_STOP_WORDS) | set(extra_stop or [])
-    vec = TfidfVectorizer(stop_words=list(stop),
-                          ngram_range=ngram_range,
-                          min_df=min_df, max_df=max_df,
-                          token_pattern=r"(?u)\b[a-zA-Z]{3,}\b",
-                          sublinear_tf=True)
-    X = vec.fit_transform(docs)
-    scores = X.max(axis=0).toarray().ravel()          # importance per term
-    terms  = np.array(vec.get_feature_names_out())
-    idx = scores.argsort()[-top_k:][::-1]
-    return pd.DataFrame({"term": terms[idx], "tfidf": scores[idx]})
+def clean_tags(df: pd.DataFrame, new_keywords) -> pd.DataFrame:
+    keywords = [
+        "aging", "ageing", "longevity",
+        "healthy aging", "healthy ageing",
+        "anti-aging", "anti ageing",
+        "living longer", 
+        "ageing well", "well ageing", "aging well", "well aging"
+    ]
+    keywords.extend(new_keywords)
+
+    escaped_keywords = [
+        r"\b" + re.escape(kw).replace(r"\ ", r"\s+") + r"\b"
+        for kw in keywords
+    ]
+
+    pattern = "|".join(escaped_keywords)
+
+    mask = df['tags'].str.contains(pattern, case=False, na=False, regex=True)
+    tag_clean_df = df[mask].reset_index(drop=True)
+
+    print(f"Kept {len(tag_clean_df)} of {len(df)} articles related to ageing.")
+    return tag_clean_df
