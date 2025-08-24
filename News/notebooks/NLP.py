@@ -48,7 +48,7 @@ def analyze_bertopic(
     topic_model = BERTopic(
         embedding_model=embedding_model,
         vectorizer_model=vectorizer,
-        nr_topics="auto", #let's bertopic optionally merge topics
+        nr_topics=None, #let's bertopic optionally merge topics
         top_n_words=top_n_words, #controls how many words you store per topic
         calculate_probabilities=True,
         verbose=True,
@@ -117,3 +117,43 @@ def clean_tags(df: pd.DataFrame, new_keywords) -> pd.DataFrame:
 
     print(f"Kept {len(tag_clean_df)} of {len(df)} articles related to ageing.")
     return tag_clean_df
+    
+def clean_sections(df: pd.DataFrame, sections_to_keep:list[str]) -> pd.DataFrame:
+    base_keep_sections = [
+        #main ones
+        'Business',
+        'Opinion',
+        'Science',
+        'Life and style',
+        'Society',
+        'Fashion',
+        #supplementary ones
+        # 'Australia News',
+        # 'US news',
+        # 'UK news',
+        'World News'
+        'Technology',
+        'Food',
+        'Environment',
+        'Wellness',
+        'Healthcare Professionals Network',
+        'Education',
+        'News',
+        # 'Sport',
+        'Inequality',
+        'Fashion',
+        'Help',
+        'Health revolution',
+        'wellbeing at work',
+        'Australian Unity: Real Wellbeing',
+        'Australian Digital Health Agency: Well connected'
+        'Industry Super Australia: Retiring well'
+    ]
+
+    base_keep_sections.extend(sections_to_keep)
+
+    filtered_df = df[df['section'].isin(base_keep_sections)]
+    
+    print(f"The dataset shrinked from {len(df)} to {len(filtered_df)}")
+    
+    return filtered_df
