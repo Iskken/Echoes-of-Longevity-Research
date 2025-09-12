@@ -209,3 +209,5 @@ __marimo__/
 # === Project-specific data ===
 *.csv
 .env
+.npy
+.zip
