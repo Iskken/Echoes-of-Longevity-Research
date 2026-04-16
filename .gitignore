@@ -205,12 +205,3 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-
-# === Project-specific data ===
-*.csv
-*.env
-*.npy
-*.zip
-*.parquet
-*.txt
-News/Data/
